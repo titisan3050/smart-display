@@ -233,6 +233,44 @@
     background: var(--accent); border-radius: .2rem;
   }
 
+  /* マップ */
+  .map-wrap { display: none; position: relative; flex: 1; min-height: 0; margin-top: 1.4rem; border-radius: 1.2rem; overflow: hidden; border: 1px solid var(--border); background: #0e1422; }
+  .news.map-mode .map-wrap { display: block; }
+  .news.map-mode .news-only { display: none; }
+  #map { position: absolute; inset: 0; background: #0e1422; }
+  .leaflet-container { font-family: inherit; }
+  .dark-tiles { filter: invert(1) hue-rotate(200deg) brightness(.95) contrast(.85) saturate(.5); }
+  .leaflet-control-attribution { background: rgba(10,16,32,.7) !important; color: var(--dim) !important; font-size: 10px; }
+  .leaflet-control-attribution a { color: var(--sub) !important; }
+  .map-hud {
+    position: absolute; left: 1.2rem; bottom: 2.4rem; z-index: 500;
+    padding: 1rem 1.6rem; border-radius: 1.2rem;
+    background: rgba(15, 22, 40, .85); border: 1px solid var(--border);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .hud-speed b { font-family: "Inter", sans-serif; font-size: 3.6rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hud-speed span { font-size: 1.2rem; color: var(--sub); margin-left: .5rem; }
+  .hud-sub { font-size: 1.1rem; color: var(--sub); margin-top: .3rem; }
+  .map-btns { position: absolute; right: 1.2rem; bottom: 2.4rem; z-index: 500; display: flex; flex-direction: column; gap: .7rem; }
+  .map-btn {
+    width: 4rem; height: 4rem; border-radius: 1rem; display: grid; place-items: center;
+    background: rgba(15, 22, 40, .85); border: 1px solid var(--border); color: var(--text);
+  }
+  .map-btn svg { width: 1.8rem; height: 1.8rem; }
+  .map-btn.on { color: var(--accent); }
+  .map-msg {
+    position: absolute; inset: 0; z-index: 600; display: none; place-items: center; text-align: center;
+    padding: 2rem; font-size: 1.4rem; color: var(--sub); background: rgba(10,16,32,.85);
+  }
+  .map-msg.show { display: grid; }
+  .me-marker { position: relative; width: 44px; height: 44px; }
+  .me-marker .pulse {
+    position: absolute; inset: 6px; border-radius: 50%; background: rgba(58,168,246,.35);
+    animation: pulse 2s ease-out infinite;
+  }
+  @keyframes pulse { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+  .me-marker svg { position: absolute; inset: 0; width: 44px; height: 44px; transition: transform .4s; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+
   .news-list {
     list-style: none; flex: 1; overflow-y: auto; min-height: 0;
     margin-top: 1.2rem; padding-right: .8rem;
@@ -332,12 +370,26 @@
     <div class="news-head">
       <div class="news-title" id="newsTitle"></div>
       <div class="news-actions">
-        <button class="icon-btn" id="newsRefresh" aria-label="更新"></button>
-        <div class="live" id="live"><i></i>ライブ</div>
+        <button class="icon-btn news-only" id="newsRefresh" aria-label="更新"></button>
+        <div class="live news-only" id="live"><i></i>ライブ</div>
+        <button class="icon-btn" id="panelToggle" aria-label="マップ表示"></button>
       </div>
     </div>
-    <div class="tabs" id="tabs"></div>
-    <ul class="news-list" id="newsList"></ul>
+    <div class="tabs news-only" id="tabs"></div>
+    <ul class="news-list news-only" id="newsList"></ul>
+    <div class="map-wrap" id="mapWrap">
+      <div id="map"></div>
+      <div class="map-hud">
+        <div class="hud-speed"><b id="hudSpeed">--</b><span>km/h</span></div>
+        <div class="hud-sub" id="hudSub">位置情報を待っています…</div>
+      </div>
+      <div class="map-btns">
+        <button class="map-btn" id="mapZoomIn" aria-label="拡大"></button>
+        <button class="map-btn" id="mapZoomOut" aria-label="縮小"></button>
+        <button class="map-btn" id="mapFollow" aria-label="現在地に戻る"></button>
+      </div>
+      <div class="map-msg" id="mapMsg"></div>
+    </div>
   </section>
 </main>
 
@@ -519,6 +571,11 @@ const ICONS = {
   expand:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>`,
   shrink:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5v5H5M14 5v5h5M10 19v-5H5M14 19v-5h5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>`,
   newspaper:`<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3" fill="#3aa8f6"/><rect x="5.5" y="8" width="13" height="2" rx="1" fill="#0b1a2e"/><rect x="5.5" y="12" width="8" height="2" rx="1" fill="#0b1a2e"/></svg>`,
+  map:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>`,
+  mapTitle: `<svg viewBox="0 0 24 24"><path d="M9 3.5L2.5 5.8v14.7L9 18.2l6 2.3 6.5-2.3V3.5L15 5.8z" fill="#3aa8f6"/><path d="M9 3.5v14.7M15 5.8v14.7" stroke="#0b1a2e" stroke-width="1.6"/></svg>`,
+  news:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg>`,
+  locate:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>`,
+  minus:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>`,
   plus:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
   trash:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>`,
   up:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>`,
@@ -963,6 +1020,168 @@ function initFeedEditor() {
 }
 
 /* ============================================================
+   マップ (現在地をリアルタイム表示)
+   ============================================================ */
+const LEAFLET = {
+  js:  ["https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js",  "sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="],
+  css: ["https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css", "sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w=="],
+};
+// 地図タイル: 国土地理院 淡色地図 (日本国内向け・無料・出典表示が必要)。CSS で暗色化して表示する
+const TILE_URL  = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png";
+const TILE_ATTR = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>';
+const TRAIL_MAX = 600;   // 軌跡として残す点の数
+
+let map = null, meMarker = null, accCircle = null, trail = null;
+let watchId = null, follow = true, lastPos = null, lastHeading = 0;
+let leafletPromise = null;
+
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletPromise) return leafletPromise;
+  leafletPromise = new Promise((resolve, reject) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet"; link.href = LEAFLET.css[0]; link.integrity = LEAFLET.css[1]; link.crossOrigin = "";
+    document.head.appendChild(link);
+    const script = document.createElement("script");
+    script.src = LEAFLET.js[0]; script.integrity = LEAFLET.js[1]; script.crossOrigin = "";
+    script.onload = resolve;
+    script.onerror = () => { leafletPromise = null; reject(new Error("leaflet load failed")); };
+    document.head.appendChild(script);
+  });
+  return leafletPromise;
+}
+
+function mapMessage(text) {
+  $("mapMsg").textContent = text || "";
+  $("mapMsg").classList.toggle("show", !!text);
+}
+
+// 2点間の方位 (度、北=0)
+function bearing(a, b) {
+  const r = Math.PI / 180;
+  const y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r);
+  const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+// 速度に応じたズーム (カーナビ風: 速いほど広域)
+function zoomForSpeed(kmh) {
+  if (kmh > 80) return 14;
+  if (kmh > 40) return 15;
+  return 16;
+}
+
+function setFollow(on) {
+  follow = on;
+  $("mapFollow").classList.toggle("on", on);
+  if (on && lastPos) map.setView(lastPos, Math.max(map.getZoom(), 16), { animate: true });
+}
+
+async function initMap() {
+  if (map) return;
+  mapMessage("地図を読み込み中…");
+  try { await loadLeaflet(); }
+  catch { mapMessage("地図を読み込めませんでした。ネットワークを確認してください"); return; }
+  mapMessage("");
+  map = L.map("map", { zoomControl: false, attributionControl: true })
+    .setView([loc.lat, loc.lon], 15);
+  L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxNativeZoom: 18, maxZoom: 19, className: "dark-tiles" }).addTo(map);
+  trail = L.polyline([], { color: "#3aa8f6", weight: 5, opacity: .7 }).addTo(map);
+  accCircle = L.circle([0, 0], { radius: 0, color: "#3aa8f6", weight: 1, fillOpacity: .1, interactive: false });
+  meMarker = L.marker([0, 0], {
+    interactive: false,
+    icon: L.divIcon({
+      className: "", iconSize: [44, 44], iconAnchor: [22, 22],
+      html: `<div class="me-marker"><div class="pulse"></div><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="13" fill="#fff"/><circle cx="22" cy="22" r="10.5" fill="#3aa8f6"/><path d="M22 13.5l5.5 12.5-5.5-3-5.5 3z" fill="#fff"/></svg></div>`,
+    }),
+  });
+  map.on("dragstart", () => setFollow(false));
+  $("mapZoomIn").onclick = () => map.zoomIn();
+  $("mapZoomOut").onclick = () => map.zoomOut();
+  $("mapFollow").onclick = () => setFollow(true);
+}
+
+function onPosition(p) {
+  const { latitude, longitude, accuracy, speed, heading } = p.coords;
+  const pos = L.latLng(latitude, longitude);
+  const kmh = speed != null && speed >= 0 ? speed * 3.6 : null;
+
+  // 進行方向: 端末が返す heading を優先し、無ければ移動方向から計算
+  if (heading != null && !isNaN(heading) && (kmh ?? 0) > 2) lastHeading = heading;
+  else if (lastPos && lastPos.distanceTo(pos) > 8) lastHeading = bearing(lastPos, pos);
+
+  if (!lastPos || lastPos.distanceTo(pos) > 3) {
+    trail.addLatLng(pos);
+    const pts = trail.getLatLngs();
+    if (pts.length > TRAIL_MAX) trail.setLatLngs(pts.slice(-TRAIL_MAX));
+  }
+  lastPos = pos;
+
+  if (!map.hasLayer(meMarker)) { meMarker.addTo(map); accCircle.addTo(map); map.setView(pos, 16); }
+  meMarker.setLatLng(pos);
+  const svg = meMarker.getElement()?.querySelector("svg");
+  if (svg) svg.style.transform = `rotate(${lastHeading}deg)`;
+  accCircle.setLatLng(pos).setRadius(accuracy);
+
+  if (follow) {
+    const z = kmh != null ? zoomForSpeed(kmh) : map.getZoom();
+    map.setView(pos, z, { animate: true, duration: .8 });
+  }
+
+  $("hudSpeed").textContent = kmh != null ? Math.round(kmh) : "--";
+  const t = new Date(p.timestamp);
+  $("hudSub").textContent = `精度 ±${Math.round(accuracy)}m ・ ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())} 更新`;
+  mapMessage("");
+}
+
+function onPositionError(e) {
+  if (e.code === 1) mapMessage("位置情報の利用が許可されていません。ブラウザのサイト設定で位置情報を許可してください");
+  else if (!lastPos) mapMessage("現在地を取得できませんでした。屋外や窓際で試してください");
+}
+
+function startTracking() {
+  if (!navigator.geolocation) { mapMessage("このブラウザは位置情報に対応していません"); return; }
+  if (watchId != null) return;
+  watchId = navigator.geolocation.watchPosition(onPosition, onPositionError,
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+}
+function stopTracking() {
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+}
+
+let panelMode = "news";
+async function setPanel(mode) {
+  panelMode = mode;
+  store("panel", mode);
+  const isMap = mode === "map";
+  document.querySelector(".news").classList.toggle("map-mode", isMap);
+  $("newsTitle").innerHTML = isMap ? `${ICONS.mapTitle}<span>マップ</span>` : `${ICONS.newspaper}<span>ニュース</span>`;
+  $("panelToggle").innerHTML = isMap ? ICONS.news : ICONS.map;
+  $("panelToggle").setAttribute("aria-label", isMap ? "ニュース表示" : "マップ表示");
+  if (isMap) {
+    await initMap();
+    if (!map) return;
+    map.invalidateSize();
+    setFollow(true);
+    startTracking();
+  } else {
+    stopTracking();
+  }
+}
+function initPanel() {
+  $("mapZoomIn").innerHTML = ICONS.plus;
+  $("mapZoomOut").innerHTML = ICONS.minus;
+  $("mapFollow").innerHTML = ICONS.locate;
+  $("panelToggle").onclick = () => setPanel(panelMode === "map" ? "news" : "map");
+  setPanel(store("panel") === "map" ? "map" : "news");
+}
+// 画面が裏に回ったら位置の監視を止めて電池を節約する
+document.addEventListener("visibilitychange", () => {
+  if (panelMode !== "map") return;
+  if (document.visibilityState === "visible") startTracking(); else stopTracking();
+});
+
+/* ============================================================
    タイマー
    ============================================================ */
 let timerTotal = 0, timerLeft = 0, timerEnd = 0, timerId = null, beepId = null, audioCtx = null;
@@ -1083,6 +1302,7 @@ loadWeather();
 setInterval(loadWeather, WEATHER_REFRESH_MIN * 60000);
 renderLauncher();
 initNews();
+initPanel();
 initTimer();
 requestWakeLock();
 </script>
