@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1222">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Smart Display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  /* 1920x1200 を基準に、画面サイズに合わせて全体を等倍スケール (1rem = 16px @1920x1200) */
+  html { font-size: min(0.8333vw, 1.3333vh); }
+
+  :root {
+    --bg-1: #0a1020;
+    --bg-2: #16213c;
+    --card: rgba(28, 37, 60, 0.72);
+    --card-2: rgba(255, 255, 255, 0.045);
+    --border: rgba(255, 255, 255, 0.09);
+    --text: #f3f6fb;
+    --sub: #9aa5bb;
+    --dim: #6e7a92;
+    --accent: #3aa8f6;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --radius: 1.75rem;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    color: var(--text);
+    font-family: "Noto Sans JP", system-ui, sans-serif;
+    background: radial-gradient(ellipse at 30% 10%, #1d2b4d 0%, var(--bg-2) 35%, var(--bg-1) 100%);
+    background-color: var(--bg-1);
+    overflow: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  svg { display: block; }
+
+  /* 背景: 星空 + 山のシルエット */
+  #stars { position: fixed; inset: 0; z-index: -2; }
+  .mountain { position: fixed; left: 0; bottom: 0; width: 100%; height: 70%; z-index: -1; opacity: .55; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 46fr 47fr;
+    gap: 3.8rem;
+    height: 100vh;
+    padding: 2.8rem 3.6rem 2.8rem 3.6rem;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, .25);
+  }
+
+  /* ---------- 左カラム ---------- */
+  .left { display: flex; flex-direction: column; gap: 1.6rem; min-height: 0; }
+
+  .quote { position: relative; padding: 1.9rem 5rem 1.7rem 2.2rem; }
+  .quote-text {
+    font-size: 1.6rem; font-weight: 700; font-style: italic; line-height: 1.55;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .quote-author { margin-top: .6rem; text-align: right; color: var(--sub); font-size: 1.3rem; margin-right: -3rem; }
+  .quote-refresh {
+    position: absolute; top: 1.4rem; right: 1.4rem;
+    width: 2.8rem; height: 2.8rem; border-radius: 50%;
+    color: var(--dim); display: grid; place-items: center;
+  }
+  .quote-refresh svg { width: 1.6rem; height: 1.6rem; }
+  .quote-refresh:active { background: var(--card-2); }
+
+  .clock-area { position: relative; padding: .4rem 0 0 .2rem; }
+  .date { font-size: 2.3rem; font-weight: 300; color: var(--sub); letter-spacing: .03em; }
+  .time-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: -.6rem; }
+  .time {
+    font-family: "Inter", sans-serif; font-weight: 800;
+    font-size: 10.2rem; line-height: 1; letter-spacing: -.045em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 .3rem 1.5rem rgba(0,0,0,.25);
+  }
+  .time .sec {
+    font-size: 2.6rem; font-weight: 700; letter-spacing: 0;
+    color: var(--accent); margin-left: 1rem;
+  }
+  .status {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 1rem 1.4rem; margin-bottom: 1.2rem;
+    border-radius: 1.1rem;
+    background: var(--card); border: 1px solid var(--border);
+    font-size: 1.25rem; font-weight: 500;
+  }
+  .status .item { display: flex; align-items: center; gap: .6rem; }
+  .status .sep { width: 1px; height: 1.6rem; background: var(--border); }
+  .status svg { width: 1.8rem; height: 1.8rem; }
+
+  /* 天気 */
+  .weather { padding: 1.7rem 2rem 1.3rem; }
+  .w-top { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 1.2rem; border-bottom: 1px solid var(--border); }
+  .w-now { display: flex; align-items: center; gap: 1.2rem; }
+  .w-now .w-icon { width: 5.2rem; height: 5.2rem; }
+  .w-title { font-size: 1.75rem; font-weight: 700; }
+  .w-sub { font-size: 1.15rem; color: var(--sub); margin-top: .1rem; }
+  .w-range { text-align: right; font-size: 1.45rem; font-weight: 500; color: var(--sub); }
+  .w-range b { color: var(--text); font-weight: 500; }
+  .w-pop { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; margin-top: .3rem; font-size: 1.45rem; color: var(--sub); }
+  .w-pop svg { width: 1.3rem; height: 1.3rem; }
+  .w-days { display: grid; grid-template-columns: repeat(5, 1fr); padding-top: 1rem; text-align: center; }
+  .w-day .d { font-size: 1.2rem; color: var(--sub); }
+  .w-day .w-icon { width: 2.8rem; height: 2.8rem; margin: .5rem auto .4rem; }
+  .w-day .t { font-size: 1.2rem; font-weight: 700; }
+  .w-day .t span { font-weight: 400; color: var(--dim); margin-left: .4rem; }
+  .w-msg { color: var(--sub); font-size: 1.2rem; padding: 1rem 0; }
+
+  /* ランチャー */
+  .launcher {
+    flex: 1; min-height: 0;
+    display: grid; gap: 1rem; padding: 1.5rem;
+    grid-template-columns: repeat(var(--cols, 8), 1fr);
+    grid-auto-rows: 1fr;
+  }
+  .app-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .7rem;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 1.2rem;
+    padding: .8rem .3rem;
+    transition: transform .12s, background .2s;
+    min-height: 0;
+  }
+  .app-btn:active { transform: scale(.94); background: rgba(255,255,255,.1); }
+  .app-btn svg { width: 3rem; height: 3rem; flex-shrink: 0; }
+  .app-btn span { font-size: 1.15rem; font-weight: 500; color: #dfe5ef; text-align: center; line-height: 1.25; word-break: break-all; }
+
+  /* ---------- ニュース ---------- */
+  .news { display: flex; flex-direction: column; min-height: 0; padding: 2.4rem 1.8rem 1.4rem 2rem; }
+  .news-head { display: flex; align-items: center; justify-content: space-between; padding-right: 3.6rem; }
+  .news-title { display: flex; align-items: center; gap: .9rem; font-size: 2.2rem; font-weight: 900; }
+  .news-title svg { width: 2.3rem; height: 2.3rem; }
+  .news-actions { display: flex; align-items: center; gap: .9rem; }
+  .icon-btn {
+    width: 3.4rem; height: 3.4rem; border-radius: .9rem;
+    display: grid; place-items: center;
+    background: var(--card-2); border: 1px solid var(--border); color: var(--sub);
+  }
+  .icon-btn svg { width: 1.6rem; height: 1.6rem; }
+  .icon-btn.spin svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .live {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .5rem 1rem; border-radius: 999px;
+    background: var(--card-2); font-size: 1.15rem; color: var(--sub);
+  }
+  .live i { width: .75rem; height: .75rem; border-radius: 50%; background: var(--green); box-shadow: 0 0 .6rem var(--green); }
+  .live.stale i { background: var(--yellow); box-shadow: 0 0 .6rem var(--yellow); }
+
+  .tabs { display: flex; gap: 2.2rem; margin-top: 1.4rem; border-bottom: 1px solid var(--border); }
+  .tab {
+    position: relative; padding: .4rem .1rem 1rem;
+    font-size: 1.55rem; font-weight: 700; color: #d5dbe6;
+  }
+  .tab.active { color: var(--accent); }
+  .tab.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: .22rem;
+    background: var(--accent); border-radius: .2rem;
+  }
+
+  .news-list {
+    list-style: none; flex: 1; overflow-y: auto; min-height: 0;
+    margin-top: 1.2rem; padding-right: .8rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent;
+  }
+  .news-list::-webkit-scrollbar { width: .35rem; }
+  .news-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 1rem; }
+  .news-item a {
+    display: block; padding: 1.4rem 1.6rem;
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 1.2rem;
+  }
+  .news-item a:active { background: rgba(255,255,255,.09); }
+  .n-title {
+    font-size: 1.55rem; font-weight: 700; line-height: 1.55;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .n-meta { display: flex; align-items: center; gap: .5rem; margin-top: .6rem; font-size: 1.15rem; color: var(--sub); }
+  .n-meta svg { width: 1.15rem; height: 1.15rem; }
+  .news-msg { color: var(--sub); font-size: 1.3rem; padding: 2rem .4rem; }
+
+  /* 全画面ボタン */
+  .fs-btn {
+    position: fixed; top: 1.6rem; right: 1.6rem; z-index: 20;
+    width: 3.8rem; height: 3.8rem; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--card); border: 1px solid var(--border); color: #cfd6e2;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .fs-btn svg { width: 1.7rem; height: 1.7rem; }
+
+  /* タイマー */
+  .modal {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(5, 9, 20, .6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .modal.open { display: flex; }
+  .timer-box { width: 46rem; padding: 2.6rem 3rem; text-align: center; position: relative; }
+  .timer-box h2 { font-size: 1.6rem; font-weight: 700; color: var(--sub); }
+  .timer-close { position: absolute; top: 1.4rem; right: 1.4rem; }
+  .timer-display {
+    font-family: "Inter", sans-serif; font-weight: 800; font-size: 8rem; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums; margin: 1rem 0 1.4rem;
+  }
+  .timer-display.done { color: var(--yellow); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .presets { display: flex; flex-wrap: wrap; justify-content: center; gap: .8rem; }
+  .presets button, .timer-ctrl button {
+    padding: .9rem 1.5rem; border-radius: 1rem; font-size: 1.3rem; font-weight: 700;
+    background: var(--card-2); border: 1px solid var(--border);
+  }
+  .timer-ctrl { display: flex; justify-content: center; gap: 1rem; margin-top: 1.6rem; }
+  .timer-ctrl .primary { background: var(--accent); border-color: var(--accent); color: #06121f; min-width: 10rem; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<svg class="mountain" viewBox="0 0 1920 840" preserveAspectRatio="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="mt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3350"/>
+      <stop offset="1" stop-color="#0c1224"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#mt)" d="M0 520 L260 330 L420 400 L760 120 L1080 430 L1280 360 L1600 560 L1920 470 L1920 840 L0 840 Z"/>
+</svg>
+
+<button class="fs-btn" id="fsBtn" aria-label="全画面"></button>
+
+<main class="app">
+  <section class="left">
+    <div class="card quote">
+      <p class="quote-text" id="quoteText"></p>
+      <p class="quote-author" id="quoteAuthor"></p>
+      <button class="quote-refresh" id="quoteRefresh" aria-label="別の名言"></button>
+    </div>
+
+    <div class="clock-area">
+      <div class="date" id="date"></div>
+      <div class="time-row">
+        <div class="time"><span id="hm"></span><span class="sec" id="sec"></span></div>
+        <div class="status">
+          <div class="item" id="net"></div>
+          <div class="sep"></div>
+          <div class="item" id="bat"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card weather" id="weather"><div class="w-msg">天気を読み込み中…</div></div>
+
+    <nav class="card launcher" id="launcher"></nav>
+  </section>
+
+  <section class="card news">
+    <div class="news-head">
+      <div class="news-title" id="newsTitle"></div>
+      <div class="news-actions">
+        <button class="icon-btn" id="newsRefresh" aria-label="更新"></button>
+        <div class="live" id="live"><i></i>ライブ</div>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <ul class="news-list" id="newsList"></ul>
+  </section>
+</main>
+
+<div class="modal" id="timerModal">
+  <div class="card timer-box">
+    <h2>タイマー</h2>
+    <button class="icon-btn timer-close" id="timerClose" aria-label="閉じる"></button>
+    <div class="timer-display" id="timerDisplay">00:00</div>
+    <div class="presets" id="presets"></div>
+    <div class="timer-ctrl">
+      <button id="timerReset">リセット</button>
+      <button class="primary" id="timerStart">スタート</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   設定
+   ============================================================ */
+
+// 天気の地点 (緯度・経度は Google マップで地点を長押しすると表示される)
+const LOCATION = { name: "東京", lat: 35.6895, lon: 139.6917 };
+
+// ランチャー
+//  url  : タップで開くURL。アプリが入っていれば Android がアプリで開く (App Links)
+//  action: "timer" を指定すると内蔵タイマーを開く
+const APPS = [
+  { name: "YouTube",      icon: "youtube",  url: "https://www.youtube.com/" },
+  { name: "Kindle",       icon: "kindle",   url: "https://read.amazon.co.jp/" },
+  { name: "Netflix",      icon: "netflix",  url: "https://www.netflix.com/" },
+  { name: "Amazon Music", icon: "music",    url: "https://music.amazon.co.jp/" },
+  { name: "Prime Video",  icon: "prime",    url: "https://www.amazon.co.jp/gp/video/storefront" },
+  { name: "Gemini",       icon: "gemini",   url: "https://gemini.google.com/" },
+  { name: "カレンダー",    icon: "calendar", url: "https://calendar.google.com/" },
+  { name: "UpNote",       icon: "note",     url: "https://getupnote.com/" },
+  { name: "タイマー",      icon: "timer",    action: "timer" },
+];
+
+// ニュース (Google News RSS)
+const GN = "https://news.google.com/rss";
+const GN_PARAMS = "hl=ja&gl=JP&ceid=JP:ja";
+const FEEDS = [
+  { key: "top",    label: "時事",     url: `${GN}?${GN_PARAMS}` },
+  { key: "car",    label: "車",       url: `${GN}/search?q=${encodeURIComponent("新型車 OR 試乗 OR 自動車メーカー OR EV OR モデルチェンジ when:3d")}&${GN_PARAMS}` },
+  { key: "gadget", label: "ガジェット", url: `${GN}/search?q=${encodeURIComponent("ガジェット OR スマホ OR タブレット OR ノートPC OR イヤホン OR スマートウォッチ when:3d")}&${GN_PARAMS}` },
+];
+
+// ブラウザから Google News を直接読むと CORS で弾かれるため中継サービスを経由する。
+// 上から順に試し、失敗したら次へ。自前の中継を用意したら先頭に追加する。
+const PROXIES = [
+  { type: "json", build: u => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}` },
+  { type: "xml",  build: u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+  { type: "xml",  build: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}` },
+];
+
+const NEWS_REFRESH_MIN    = 15;  // ニュース更新間隔(分)
+const WEATHER_REFRESH_MIN = 30;  // 天気更新間隔(分)
+const TAB_ROTATE_SEC      = 0;   // ニュースタブの自動切替(秒)。0で無効
+const NEWS_MAX            = 20;
+
+// 名言 [本文, 人物, 肩書き]
+const QUOTES = [
+  ["進み続ける限り、遅くとも問題ではない。", "孔子", "思想家"],
+  ["千里の道も一歩から。", "老子", "思想家"],
+  ["為せば成る、為さねば成らぬ何事も。", "上杉鷹山", "米沢藩主"],
+  ["天才とは1%のひらめきと99%の努力である。", "トーマス・エジソン", "発明家"],
+  ["人間は考える葦である。", "ブレーズ・パスカル", "哲学者"],
+  ["失敗したところでやめてしまうから失敗になる。成功するところまで続ければ、それは成功になる。", "松下幸之助", "実業家"],
+  ["想像力は知識よりも重要だ。", "アルベルト・アインシュタイン", "物理学者"],
+  ["人生とは自転車に乗るようなものだ。倒れないためには、走り続けるしかない。", "アルベルト・アインシュタイン", "物理学者"],
+  ["明日死ぬかのように生きよ。永遠に生きるかのように学べ。", "マハトマ・ガンジー", "政治指導者"],
+  ["ハングリーであれ。愚か者であれ。", "スティーブ・ジョブズ", "実業家"],
+  ["過去と他人は変えられない。未来と自分は変えられる。", "エリック・バーン", "精神科医"],
+  ["私たちは、自分たちが考える通りの人間になる。", "アール・ナイチンゲール", "作家・ラジオパーソナリティ"],
+  ["夢なき者に理想なし、理想なき者に計画なし、計画なき者に実行なし、実行なき者に成功なし。", "吉田松陰", "思想家"],
+  ["己を知り敵を知れば百戦殆うからず。", "孫子", "兵法家"],
+  ["初心忘るべからず。", "世阿弥", "能楽師"],
+  ["やってみせ、言って聞かせて、させてみせ、ほめてやらねば、人は動かじ。", "山本五十六", "軍人"],
+  ["知識に投資することは、常に最大の利益をもたらす。", "ベンジャミン・フランクリン", "政治家・科学者"],
+  ["今日できることを明日に延ばすな。", "ベンジャミン・フランクリン", "政治家・科学者"],
+  ["未来を予測する最善の方法は、それを発明することだ。", "アラン・ケイ", "計算機科学者"],
+  ["一日一生。", "内村鑑三", "思想家"],
+  ["小さなことを積み重ねることが、とんでもないところへ行くただ一つの道。", "イチロー", "野球選手"],
+  ["行動は必ずしも幸福をもたらさないが、行動なくして幸福はない。", "ベンジャミン・ディズレーリ", "政治家"],
+  ["学べば学ぶほど、自分がどれだけ無知であるか思い知らされる。", "アルベルト・アインシュタイン", "物理学者"],
+  ["我思う、ゆえに我あり。", "ルネ・デカルト", "哲学者"],
+  ["道は近きにあり、然るにこれを遠きに求む。", "孟子", "思想家"],
+  ["人事を尽くして天命を待つ。", "胡寅", "儒学者"],
+  ["幸福とは、自分自身に満足することである。", "ルソー", "哲学者"],
+  ["自分の価値は自分で決めることさ。", "手塚治虫", "漫画家"],
+  ["チャンスは準備された心に降り立つ。", "ルイ・パスツール", "細菌学者"],
+  ["簡単なことを完璧にこなせる人が、難しいことも成し遂げる。", "ことわざ", "西洋"],
+  ["笑う門には福来る。", "ことわざ", "日本"],
+];
+
+/* ============================================================
+   アイコン (インライン SVG)
+   ============================================================ */
+const ICONS = {
+  youtube:  `<svg viewBox="0 0 48 48"><rect x="4" y="10" width="40" height="28" rx="9" fill="#ef4444"/><path d="M20 17.5v13l11-6.5z" fill="#fff"/></svg>`,
+  kindle:   `<svg viewBox="0 0 48 48"><path d="M6 11c6-2 12-1 17 3v25c-5-4-11-5-17-3z" fill="#f59e0b"/><path d="M42 11c-6-2-12-1-17 3v25c5-4 11-5 17-3z" fill="#fbbf24"/></svg>`,
+  netflix:  `<svg viewBox="0 0 48 48"><path d="M10 18h28l-4 24H14z" fill="#ef4444"/><path d="M17 18l1.5 24M24 18v24M31 18l-1.5 24" stroke="#fecaca" stroke-width="2.2"/><circle cx="15" cy="15" r="5" fill="#fde68a"/><circle cx="24" cy="12" r="6" fill="#fef3c7"/><circle cx="33" cy="15" r="5" fill="#fde68a"/></svg>`,
+  music:    `<svg viewBox="0 0 48 48" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"><path d="M9 30v-5a15 15 0 0 1 30 0v5"/><rect x="7" y="28" width="8" height="12" rx="3" fill="#38bdf8"/><rect x="33" y="28" width="8" height="12" rx="3" fill="#38bdf8"/></svg>`,
+  prime:    `<svg viewBox="0 0 48 48"><rect x="7" y="9" width="34" height="24" rx="4" fill="#38bdf8"/><path d="M21 15v12l10-6z" fill="#0b1a2e"/><rect x="12" y="37" width="24" height="3.5" rx="1.75" fill="#38bdf8"/></svg>`,
+  gemini:   `<svg viewBox="0 0 48 48"><path d="M20 10c1.5 8 5 11.5 13 13-8 1.5-11.5 5-13 13-1.5-8-5-11.5-13-13 8-1.5 11.5-5 13-13z" fill="#60a5fa"/><path d="M36 5c.7 3.3 2 4.6 5.3 5.3-3.3.7-4.6 2-5.3 5.3-.7-3.3-2-4.6-5.3-5.3 3.3-.7 4.6-2 5.3-5.3z" fill="#93c5fd"/><circle cx="40" cy="20" r="1.8" fill="#93c5fd"/></svg>`,
+  calendar: `<svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="31" rx="5" fill="#38bdf8"/><rect x="7" y="10" width="34" height="9" rx="4" fill="#0ea5e9"/><rect x="14" y="6" width="4" height="8" rx="2" fill="#bae6fd"/><rect x="30" y="6" width="4" height="8" rx="2" fill="#bae6fd"/><g fill="#e0f2fe"><rect x="13" y="24" width="5" height="4" rx="1"/><rect x="21.5" y="24" width="5" height="4" rx="1"/><rect x="30" y="24" width="5" height="4" rx="1"/><rect x="13" y="32" width="5" height="4" rx="1"/><rect x="21.5" y="32" width="5" height="4" rx="1"/></g></svg>`,
+  note:     `<svg viewBox="0 0 48 48" fill="none" stroke="#22d3ee" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10H12a4 4 0 0 0-4 4v22a4 4 0 0 0 4 4h22a4 4 0 0 0 4-4V26"/><path d="M35 7l6 6-15 15-8 2 2-8z"/></svg>`,
+  timer:    `<svg viewBox="0 0 48 48"><rect x="20" y="4" width="8" height="5" rx="2" fill="#f59e0b"/><circle cx="24" cy="27" r="16" fill="#fbbf24"/><path d="M24 27l6-7" stroke="#78350f" stroke-width="3.5" stroke-linecap="round"/></svg>`,
+
+  quoteRefresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>`,
+  refresh:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>`,
+  close:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  expand:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>`,
+  shrink:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5v5H5M14 5v5h5M10 19v-5H5M14 19v-5h5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>`,
+  newspaper:`<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3" fill="#3aa8f6"/><rect x="5.5" y="8" width="13" height="2" rx="1" fill="#0b1a2e"/><rect x="5.5" y="12" width="8" height="2" rx="1" fill="#0b1a2e"/></svg>`,
+  clock:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+  drop:     `<svg viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.6 6.5 8.4 6.5 12a6.5 6.5 0 0 1-13 0c0-3.6 3-7.4 6.5-12z" fill="#60a5fa"/></svg>`,
+  wifiOn:   `<svg viewBox="0 0 24 24"><path d="M12 20.5L1.5 8.2a15.5 15.5 0 0 1 21 0z" fill="#34d399"/></svg>`,
+  wifiOff:  `<svg viewBox="0 0 24 24"><path d="M12 20.5L1.5 8.2a15.5 15.5 0 0 1 21 0z" fill="#475569"/><path d="M4 4l16 16" stroke="#f87171" stroke-width="2.4" stroke-linecap="round"/></svg>`,
+};
+function battery(pct, charging) {
+  const color = charging ? "#fbbf24" : pct <= 20 ? "#f87171" : "#34d399";
+  const w = Math.max(2, 14 * pct / 100);
+  return `<svg viewBox="0 0 26 24"><rect x="1.5" y="6" width="19" height="12" rx="3" fill="none" stroke="${color}" stroke-width="1.8"/>
+    <rect x="22" y="9.5" width="2.5" height="5" rx="1" fill="${color}"/>
+    <rect x="4" y="8.5" width="${charging ? 14 : w}" height="7" rx="1.5" fill="${color}"/>
+    ${charging ? `<path d="M12.5 7.5l-4 5.2h3l-1 3.8 4-5.2h-3z" fill="#1f2937"/>` : ""}</svg>`;
+}
+
+/* 天気アイコン */
+const W_SVG = {
+  sun: `<svg viewBox="0 0 64 64"><defs><radialGradient id="gs" cx=".4" cy=".35"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></radialGradient></defs><g stroke="#fbbf24" stroke-width="3" stroke-linecap="round"><path d="M32 6v6M32 52v6M6 32h6M52 32h6M13.6 13.6l4.2 4.2M46.2 46.2l4.2 4.2M13.6 50.4l4.2-4.2M46.2 17.8l4.2-4.2"/></g><circle cx="32" cy="32" r="13" fill="url(#gs)"/></svg>`,
+  cloud: `<svg viewBox="0 0 64 64"><defs><linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c7d0de"/></linearGradient></defs><path d="M18 48a11 11 0 0 1-1.5-21.9A15 15 0 0 1 45 22a12 12 0 0 1 2 26z" fill="url(#gc)"/></svg>`,
+  partly: `<svg viewBox="0 0 64 64"><defs><radialGradient id="gp" cx=".4" cy=".35"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></radialGradient><linearGradient id="gpc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c7d0de"/></linearGradient></defs><circle cx="24" cy="22" r="12" fill="url(#gp)"/><path d="M22 52a10 10 0 0 1-1.3-19.9A13.5 13.5 0 0 1 46.5 28a11 11 0 0 1 1.5 24z" fill="url(#gpc)"/></svg>`,
+  rain: `<svg viewBox="0 0 64 64"><defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M18 40a11 11 0 0 1-1.5-21.9A15 15 0 0 1 45 14a12 12 0 0 1 2 26z" fill="url(#gr)"/><g stroke="#60a5fa" stroke-width="3.2" stroke-linecap="round"><path d="M24 46l-3 8M34 46l-3 8M44 46l-3 8"/></g></svg>`,
+  snow: `<svg viewBox="0 0 64 64"><defs><linearGradient id="gn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c7d0de"/></linearGradient></defs><path d="M18 40a11 11 0 0 1-1.5-21.9A15 15 0 0 1 45 14a12 12 0 0 1 2 26z" fill="url(#gn)"/><g fill="#e0f2fe"><circle cx="22" cy="50" r="3"/><circle cx="33" cy="54" r="3"/><circle cx="44" cy="50" r="3"/></g></svg>`,
+  thunder: `<svg viewBox="0 0 64 64"><defs><linearGradient id="gt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#94a3b8"/><stop offset="1" stop-color="#475569"/></linearGradient></defs><path d="M18 40a11 11 0 0 1-1.5-21.9A15 15 0 0 1 45 14a12 12 0 0 1 2 26z" fill="url(#gt)"/><path d="M34 36l-8 13h7l-3 11 11-15h-7l4-9z" fill="#fbbf24"/></svg>`,
+  fog: `<svg viewBox="0 0 64 64"><g stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"><path d="M12 24h40M8 34h44M14 44h38"/></g></svg>`,
+};
+// WMO 天気コード → [アイコン, 表示名]
+function wmo(code) {
+  if (code === 0) return ["sun", "晴れ"];
+  if (code <= 2) return ["partly", "晴れ時々くもり"];
+  if (code === 3) return ["cloud", "くもり"];
+  if (code <= 48) return ["fog", "霧"];
+  if (code <= 57) return ["rain", "霧雨"];
+  if (code <= 67) return ["rain", "雨"];
+  if (code <= 77) return ["snow", "雪"];
+  if (code <= 82) return ["rain", "にわか雨"];
+  if (code <= 86) return ["snow", "にわか雪"];
+  return ["thunder", "雷雨"];
+}
+const wIcon = code => W_SVG[wmo(code)[0]].replace('<svg', '<svg class="w-icon"');
+
+/* ============================================================
+   共通
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
+const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function store(key, val) {
+  try {
+    if (val === undefined) return JSON.parse(localStorage.getItem(key) || "null");
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch { return null; }
+}
+async function fetchWithTimeout(url, ms = 12000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    return res;
+  } finally { clearTimeout(timer); }
+}
+
+/* ============================================================
+   名言
+   ============================================================ */
+function showQuote(i) {
+  const [text, author, role] = QUOTES[i % QUOTES.length];
+  $("quoteText").textContent = `"${text}"`;
+  $("quoteAuthor").textContent = `- ${author}（${role}）`;
+}
+function dailyQuote() {
+  const now = new Date();
+  showQuote(Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000));
+}
+$("quoteRefresh").innerHTML = ICONS.quoteRefresh;
+$("quoteRefresh").onclick = () => showQuote(Math.floor(Math.random() * QUOTES.length));
+
+/* ============================================================
+   時計
+   ============================================================ */
+let lastDay = -1;
+function tick() {
+  const d = new Date();
+  $("hm").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  $("sec").textContent = pad(d.getSeconds());
+  if (d.getDate() !== lastDay) {
+    lastDay = d.getDate();
+    $("date").textContent = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(${WEEK[d.getDay()]})`;
+    dailyQuote();
+  }
+  setTimeout(tick, 1000 - d.getMilliseconds());
+}
+
+/* ============================================================
+   ネットワーク / バッテリー
+   ============================================================ */
+function renderNet() {
+  const on = navigator.onLine;
+  $("net").innerHTML = `${on ? ICONS.wifiOn : ICONS.wifiOff}<span>${on ? "オンライン" : "オフライン"}</span>`;
+}
+window.addEventListener("online", () => { renderNet(); loadNews(); loadWeather(); });
+window.addEventListener("offline", renderNet);
+
+async function initBattery() {
+  if (!navigator.getBattery) { $("bat").previousElementSibling.remove(); $("bat").remove(); return; }
+  const bat = await navigator.getBattery();
+  const render = () => {
+    const pct = Math.round(bat.level * 100);
+    $("bat").innerHTML = `${battery(pct, bat.charging)}<span>${pct}%</span>`;
+  };
+  render();
+  bat.addEventListener("levelchange", render);
+  bat.addEventListener("chargingchange", render);
+}
+
+/* ============================================================
+   天気 (Open-Meteo)
+   ============================================================ */
+function renderWeather(data) {
+  const el = $("weather");
+  if (!data) { el.innerHTML = `<div class="w-msg">天気を取得できませんでした</div>`; return; }
+  const c = data.current, dd = data.daily;
+  const days = dd.time.slice(1, 6).map((t, i) => {
+    const d = new Date(t + "T00:00:00");
+    return `<div class="w-day"><div class="d">${WEEK[d.getDay()]}</div>${wIcon(dd.weather_code[i + 1])}
+      <div class="t">${Math.round(dd.temperature_2m_max[i + 1])}°<span>${Math.round(dd.temperature_2m_min[i + 1])}°</span></div></div>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="w-top">
+      <div class="w-now">${wIcon(c.weather_code)}
+        <div><div class="w-title">${wmo(c.weather_code)[1]} • ${esc(LOCATION.name)}</div><div class="w-sub">今日 ${Math.round(c.temperature_2m)}°</div></div>
+      </div>
+      <div>
+        <div class="w-range">最高: <b>${Math.round(dd.temperature_2m_max[0])}°</b> / 最低: <b>${Math.round(dd.temperature_2m_min[0])}°</b></div>
+        <div class="w-pop">${ICONS.drop}${dd.precipitation_probability_max[0] ?? "-"}%</div>
+      </div>
+    </div>
+    <div class="w-days">${days}</div>`;
+}
+async function loadWeather() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}`
+    + `&current=temperature_2m,weather_code`
+    + `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max`
+    + `&timezone=Asia%2FTokyo&forecast_days=6`;
+  try {
+    const data = await (await fetchWithTimeout(url)).json();
+    store("weather", data);
+    renderWeather(data);
+  } catch (e) {
+    console.warn("weather:", e);
+    renderWeather(store("weather"));
+  }
+}
+
+/* ============================================================
+   ランチャー
+   ============================================================ */
+function renderLauncher() {
+  const nav = $("launcher");
+  // 8個までは1段、それ以上は2段
+  nav.style.setProperty("--cols", APPS.length <= 8 ? APPS.length : Math.ceil(APPS.length / 2));
+  for (const app of APPS) {
+    const el = document.createElement(app.action ? "button" : "a");
+    el.className = "app-btn";
+    if (app.action === "timer") el.onclick = openTimer;
+    else { el.href = app.url; el.target = "_blank"; el.rel = "noopener"; }
+    el.innerHTML = `${ICONS[app.icon] || ""}<span>${esc(app.name)}</span>`;
+    nav.appendChild(el);
+  }
+}
+
+/* ============================================================
+   ニュース
+   ============================================================ */
+const newsCache = store("newsCache") || {};
+let activeKey = FEEDS[0].key;
+
+function parseRssXml(text) {
+  const doc = new DOMParser().parseFromString(text, "text/xml");
+  const items = [...doc.querySelectorAll("item")];
+  if (!items.length) throw new Error("no items");
+  return items.map(it => ({
+    title: it.querySelector("title")?.textContent ?? "",
+    link: it.querySelector("link")?.textContent ?? "",
+    date: new Date(it.querySelector("pubDate")?.textContent ?? "").getTime(),
+  }));
+}
+function parseRss2Json(json) {
+  if (json.status !== "ok" || !json.items?.length) throw new Error("rss2json error");
+  // rss2json の pubDate は "YYYY-MM-DD HH:mm:ss" (UTC)
+  return json.items.map(it => ({ title: it.title, link: it.link, date: new Date(it.pubDate.replace(" ", "T") + "Z").getTime() }));
+}
+async function fetchFeed(feed) {
+  for (const p of PROXIES) {
+    try {
+      const res = await fetchWithTimeout(p.build(feed.url));
+      const items = p.type === "json" ? parseRss2Json(await res.json()) : parseRssXml(await res.text());
+      return items.sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, NEWS_MAX);
+    } catch (e) { console.warn("proxy failed:", p.build(""), e); }
+  }
+  throw new Error("all proxies failed");
+}
+function fmtDate(ms) {
+  const d = new Date(ms);
+  if (isNaN(d)) return "";
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEK[d.getDay()]}) ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function renderNews() {
+  const list = $("newsList");
+  const entry = newsCache[activeKey];
+  list.scrollTop = 0;
+  if (!entry) { list.innerHTML = `<li class="news-msg">読み込み中…</li>`; return; }
+  if (!entry.items.length) { list.innerHTML = `<li class="news-msg">ニュースを取得できませんでした</li>`; return; }
+  list.innerHTML = entry.items.map(it => `
+    <li class="news-item"><a href="${esc(it.link)}" target="_blank" rel="noopener">
+      <div class="n-title">${esc(it.title)}</div>
+      <div class="n-meta">${ICONS.clock}${fmtDate(it.date)}</div>
+    </a></li>`).join("");
+}
+let loadingNews = false;
+async function loadNews() {
+  if (loadingNews || !navigator.onLine) return;
+  loadingNews = true;
+  $("newsRefresh").classList.add("spin");
+  let allOk = true;
+  await Promise.all(FEEDS.map(async feed => {
+    try {
+      newsCache[feed.key] = { items: await fetchFeed(feed), fetchedAt: Date.now() };
+    } catch {
+      allOk = false;
+      if (!newsCache[feed.key]) newsCache[feed.key] = { items: [], fetchedAt: 0 };
+    }
+  }));
+  store("newsCache", newsCache);
+  $("live").classList.toggle("stale", !allOk);
+  $("newsRefresh").classList.remove("spin");
+  loadingNews = false;
+  renderNews();
+}
+function setTab(key) {
+  activeKey = key;
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.key === key));
+  renderNews();
+}
+let rotateTimer;
+function scheduleRotate() {
+  clearInterval(rotateTimer);
+  if (!TAB_ROTATE_SEC) return;
+  rotateTimer = setInterval(() => {
+    const i = FEEDS.findIndex(f => f.key === activeKey);
+    setTab(FEEDS[(i + 1) % FEEDS.length].key);
+  }, TAB_ROTATE_SEC * 1000);
+}
+function initNews() {
+  $("newsTitle").innerHTML = `${ICONS.newspaper}<span>ニュース</span>`;
+  $("newsRefresh").innerHTML = ICONS.refresh;
+  $("newsRefresh").onclick = loadNews;
+  for (const feed of FEEDS) {
+    const b = document.createElement("button");
+    b.className = "tab";
+    b.dataset.key = feed.key;
+    b.textContent = feed.label;
+    b.onclick = () => { setTab(feed.key); scheduleRotate(); };
+    $("tabs").appendChild(b);
+  }
+  setTab(activeKey);
+  loadNews();
+  setInterval(loadNews, NEWS_REFRESH_MIN * 60000);
+  scheduleRotate();
+}
+
+/* ============================================================
+   タイマー
+   ============================================================ */
+let timerTotal = 0, timerLeft = 0, timerEnd = 0, timerId = null, beepId = null, audioCtx = null;
+const PRESETS = [1, 3, 5, 10, 15, 30];
+function fmtTimer(s) {
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+function renderTimer() {
+  $("timerDisplay").textContent = fmtTimer(Math.max(0, Math.ceil(timerLeft)));
+  $("timerStart").textContent = timerId ? "一時停止" : "スタート";
+}
+function beep() {
+  try {
+    audioCtx = audioCtx || new AudioContext();
+    [0, .25, .5].forEach(t => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(.25, audioCtx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + t + .2);
+      o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + .2);
+    });
+  } catch {}
+}
+function stopAlarm() {
+  clearInterval(beepId); beepId = null;
+  $("timerDisplay").classList.remove("done");
+}
+function timerTick() {
+  timerLeft = (timerEnd - Date.now()) / 1000;
+  if (timerLeft <= 0) {
+    clearInterval(timerId); timerId = null; timerLeft = 0;
+    $("timerDisplay").classList.add("done");
+    $("timerModal").classList.add("open");
+    beep(); beepId = setInterval(beep, 1500);
+    setTimeout(stopAlarm, 60000);
+  }
+  renderTimer();
+}
+function openTimer() { $("timerModal").classList.add("open"); renderTimer(); }
+function initTimer() {
+  $("timerClose").innerHTML = ICONS.close;
+  $("timerClose").onclick = () => { stopAlarm(); $("timerModal").classList.remove("open"); };
+  $("presets").innerHTML = PRESETS.map(m => `<button data-m="${m}">+${m}分</button>`).join("");
+  $("presets").onclick = e => {
+    const m = e.target.dataset.m; if (!m) return;
+    stopAlarm();
+    timerLeft += m * 60; timerTotal = timerLeft;
+    if (timerId) timerEnd += m * 60000;
+    renderTimer();
+  };
+  $("timerStart").onclick = () => {
+    stopAlarm();
+    audioCtx = audioCtx || new AudioContext();   // ユーザー操作時に音声を有効化
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    else if (timerLeft > 0) { timerEnd = Date.now() + timerLeft * 1000; timerId = setInterval(timerTick, 250); }
+    renderTimer();
+  };
+  $("timerReset").onclick = () => {
+    stopAlarm(); clearInterval(timerId); timerId = null; timerLeft = 0; renderTimer();
+  };
+}
+
+/* ============================================================
+   全画面 / スリープ防止 / 背景
+   ============================================================ */
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ("wakeLock" in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    }
+  } catch (e) { console.warn("wakeLock:", e); }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { requestWakeLock(); loadNews(); }
+});
+document.addEventListener("pointerdown", requestWakeLock, { once: true });
+
+function renderFsIcon() { $("fsBtn").innerHTML = document.fullscreenElement ? ICONS.shrink : ICONS.expand; }
+$("fsBtn").onclick = async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+  } catch (e) { console.warn("fullscreen:", e); }
+  requestWakeLock();
+};
+document.addEventListener("fullscreenchange", renderFsIcon);
+
+function drawStars() {
+  const c = $("stars"), dpr = window.devicePixelRatio || 1;
+  c.width = innerWidth * dpr; c.height = innerHeight * dpr;
+  c.style.width = innerWidth + "px"; c.style.height = innerHeight + "px";
+  const ctx = c.getContext("2d");
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const n = Math.floor(innerWidth * innerHeight / 2500);
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * c.width, y = rnd() * c.height * .8, r = (rnd() * 1.1 + .2) * dpr;
+    ctx.fillStyle = `rgba(255,255,255,${rnd() * .6 + .15})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+window.addEventListener("resize", drawStars);
+
+/* ============================================================
+   起動
+   ============================================================ */
+drawStars();
+renderFsIcon();
+tick();
+renderNet();
+initBattery();
+if (store("weather")) renderWeather(store("weather"));
+loadWeather();
+setInterval(loadWeather, WEATHER_REFRESH_MIN * 60000);
+renderLauncher();
+initNews();
+initTimer();
+requestWakeLock();
+</script>
+</body>
+</html>
