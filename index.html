@@ -122,6 +122,36 @@
   .w-day .t { font-size: 1.2rem; font-weight: 700; }
   .w-day .t span { font-weight: 400; color: var(--dim); margin-left: .4rem; }
   .w-msg { color: var(--sub); font-size: 1.2rem; padding: 1rem 0; }
+  .weather { cursor: pointer; }
+  .w-title .chev { display: inline-block; width: 1.4rem; height: 1.4rem; margin-left: .4rem; vertical-align: -.1rem; color: var(--dim); }
+
+  /* 地域選択 */
+  .loc-box { width: 52rem; max-height: 86vh; padding: 2.4rem 2.6rem; position: relative; display: flex; flex-direction: column; gap: 1.4rem; }
+  .loc-box h2 { font-size: 1.6rem; font-weight: 700; color: var(--sub); }
+  .loc-row { display: flex; gap: .8rem; }
+  .loc-input, .loc-select {
+    flex: 1; min-width: 0; padding: 1rem 1.2rem; border-radius: 1rem; font-size: 1.35rem; font-family: inherit;
+    color: var(--text); background: rgba(0,0,0,.25); border: 1px solid var(--border); outline: none;
+  }
+  .loc-input:focus, .loc-select:focus { border-color: var(--accent); }
+  .loc-select option { background: #1c253c; }
+  .loc-btn {
+    display: flex; align-items: center; justify-content: center; gap: .6rem;
+    padding: 1rem 1.5rem; border-radius: 1rem; font-size: 1.3rem; font-weight: 700;
+    background: var(--card-2); border: 1px solid var(--border); white-space: nowrap;
+  }
+  .loc-btn svg { width: 1.5rem; height: 1.5rem; }
+  .loc-btn.primary { background: var(--accent); border-color: var(--accent); color: #06121f; }
+  .loc-label { font-size: 1.1rem; color: var(--dim); margin-bottom: -.6rem; }
+  .loc-results { list-style: none; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: .6rem; }
+  .loc-results button {
+    width: 100%; text-align: left; padding: 1rem 1.2rem; border-radius: 1rem;
+    background: var(--card-2); border: 1px solid var(--border); font-size: 1.35rem;
+  }
+  .loc-results button small { color: var(--sub); margin-left: .8rem; font-size: 1.1rem; }
+  .loc-status { color: var(--sub); font-size: 1.2rem; }
+  .loc-current { font-size: 1.2rem; color: var(--sub); }
+  .loc-current b { color: var(--text); }
 
   /* ランチャー */
   .launcher {
@@ -284,6 +314,24 @@
   </section>
 </main>
 
+<div class="modal" id="locModal">
+  <div class="card loc-box">
+    <h2>地域を選択</h2>
+    <button class="icon-btn timer-close" id="locClose" aria-label="閉じる"></button>
+    <div class="loc-current" id="locCurrent"></div>
+    <button class="loc-btn primary" id="locGeo"></button>
+    <div class="loc-label">都道府県から選ぶ</div>
+    <select class="loc-select" id="locPref"></select>
+    <div class="loc-label">市区町村名で検索</div>
+    <form class="loc-row" id="locForm">
+      <input class="loc-input" id="locQuery" type="search" placeholder="例: 鎌倉市" enterkeyhint="search">
+      <button class="loc-btn" type="submit" id="locSearch"></button>
+    </form>
+    <div class="loc-status" id="locStatus"></div>
+    <ul class="loc-results" id="locResults"></ul>
+  </div>
+</div>
+
 <div class="modal" id="timerModal">
   <div class="card timer-box">
     <h2>タイマー</h2>
@@ -302,8 +350,28 @@
    設定
    ============================================================ */
 
-// 天気の地点 (緯度・経度は Google マップで地点を長押しすると表示される)
-const LOCATION = { name: "東京", lat: 35.6895, lon: 139.6917 };
+// 天気の地点の初期値。画面の天気カードをタップすると変更でき、選んだ地点はブラウザに保存される
+const DEFAULT_LOCATION = { name: "東京", lat: 35.6895, lon: 139.6917 };
+
+// 地域選択の都道府県リスト [都道府県, 代表地点, 緯度, 経度]
+const PREFS = [
+  ["北海道", "札幌市", 43.0667, 141.35], ["青森県", "青森市", 40.8167, 140.7333], ["岩手県", "盛岡市", 39.7, 141.15],
+  ["宮城県", "仙台市", 38.2667, 140.8667], ["秋田県", "秋田市", 39.7167, 140.1167], ["山形県", "山形市", 38.2333, 140.3667],
+  ["福島県", "福島市", 37.75, 140.4667], ["茨城県", "水戸市", 36.35, 140.45], ["栃木県", "宇都宮市", 36.5667, 139.8833],
+  ["群馬県", "前橋市", 36.4, 139.0833], ["埼玉県", "さいたま市", 35.9081, 139.6566], ["千葉県", "千葉市", 35.6, 140.1167],
+  ["東京都", "東京", 35.6895, 139.6917], ["神奈川県", "横浜市", 35.4333, 139.65], ["新潟県", "新潟市", 37.9226, 139.0412],
+  ["富山県", "富山市", 36.7, 137.2167], ["石川県", "金沢市", 36.6, 136.6167], ["福井県", "福井市", 36.0644, 136.2226],
+  ["山梨県", "甲府市", 35.6667, 138.5667], ["長野県", "長野市", 36.65, 138.1833], ["岐阜県", "岐阜市", 35.4229, 136.7604],
+  ["静岡県", "静岡市", 34.9833, 138.3833], ["愛知県", "名古屋市", 35.1815, 136.9064], ["三重県", "津市", 34.7333, 136.5167],
+  ["滋賀県", "大津市", 35.0, 135.8667], ["京都府", "京都市", 35.0211, 135.7538], ["大阪府", "大阪市", 34.6938, 135.5011],
+  ["兵庫県", "神戸市", 34.6913, 135.183], ["奈良県", "奈良市", 34.685, 135.8049], ["和歌山県", "和歌山市", 34.2333, 135.1667],
+  ["鳥取県", "鳥取市", 35.5, 134.2333], ["島根県", "松江市", 35.4833, 133.05], ["岡山県", "岡山市", 34.65, 133.9333],
+  ["広島県", "広島市", 34.4, 132.45], ["山口県", "山口市", 34.1833, 131.4667], ["徳島県", "徳島市", 34.0667, 134.5667],
+  ["香川県", "高松市", 34.3333, 134.05], ["愛媛県", "松山市", 33.8391, 132.7567], ["高知県", "高知市", 33.55, 133.5333],
+  ["福岡県", "福岡市", 33.6, 130.4167], ["佐賀県", "佐賀市", 33.2333, 130.3], ["長崎県", "長崎市", 32.75, 129.8833],
+  ["熊本県", "熊本市", 32.8059, 130.6918], ["大分県", "大分市", 33.2333, 131.6], ["宮崎県", "宮崎市", 31.9167, 131.4167],
+  ["鹿児島県", "鹿児島市", 31.5667, 130.55], ["沖縄県", "那覇市", 26.213, 127.6785],
+];
 
 // ランチャー
 //  url  : タップで開くURL。アプリが入っていれば Android がアプリで開く (App Links)
@@ -397,6 +465,9 @@ const ICONS = {
   expand:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>`,
   shrink:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5v5H5M14 5v5h5M10 19v-5H5M14 19v-5h5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>`,
   newspaper:`<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3" fill="#3aa8f6"/><rect x="5.5" y="8" width="13" height="2" rx="1" fill="#0b1a2e"/><rect x="5.5" y="12" width="8" height="2" rx="1" fill="#0b1a2e"/></svg>`,
+  chevron:  `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`,
+  pin:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>`,
+  search:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>`,
   clock:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
   drop:     `<svg viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.6 6.5 8.4 6.5 12a6.5 6.5 0 0 1-13 0c0-3.6 3-7.4 6.5-12z" fill="#60a5fa"/></svg>`,
   wifiOn:   `<svg viewBox="0 0 24 24"><path d="M12 20.5L1.5 8.2a15.5 15.5 0 0 1 21 0z" fill="#34d399"/></svg>`,
@@ -527,7 +598,7 @@ function renderWeather(data) {
   el.innerHTML = `
     <div class="w-top">
       <div class="w-now">${wIcon(c.weather_code)}
-        <div><div class="w-title">${wmo(c.weather_code)[1]} • ${esc(LOCATION.name)}</div><div class="w-sub">今日 ${Math.round(c.temperature_2m)}°</div></div>
+        <div><div class="w-title">${wmo(c.weather_code)[1]} • ${esc(loc.name)}${ICONS.chevron}</div><div class="w-sub">今日 ${Math.round(c.temperature_2m)}°</div></div>
       </div>
       <div>
         <div class="w-range">最高: <b>${Math.round(dd.temperature_2m_max[0])}°</b> / 最低: <b>${Math.round(dd.temperature_2m_min[0])}°</b></div>
@@ -536,19 +607,100 @@ function renderWeather(data) {
     </div>
     <div class="w-days">${days}</div>`;
 }
+// 保存済みの天気は、今の地点と同じ場合だけ使う
+function cachedWeather() {
+  const w = store("weather");
+  return w && w.loc && w.loc.lat === loc.lat && w.loc.lon === loc.lon ? w : null;
+}
 async function loadWeather() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}`
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}`
     + `&current=temperature_2m,weather_code`
     + `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max`
     + `&timezone=Asia%2FTokyo&forecast_days=6`;
   try {
     const data = await (await fetchWithTimeout(url)).json();
+    data.loc = loc;
     store("weather", data);
     renderWeather(data);
   } catch (e) {
     console.warn("weather:", e);
-    renderWeather(store("weather"));
+    renderWeather(cachedWeather());
   }
+}
+
+/* ============================================================
+   地域選択
+   ============================================================ */
+let loc = store("location") || DEFAULT_LOCATION;
+
+function setLocation(next) {
+  loc = next;
+  store("location", loc);
+  closeLocation();
+  $("weather").innerHTML = `<div class="w-msg">天気を読み込み中…</div>`;
+  loadWeather();
+}
+function openLocation() {
+  $("locCurrent").innerHTML = `現在の地点: <b>${esc(loc.name)}</b>`;
+  $("locStatus").textContent = "";
+  $("locResults").innerHTML = "";
+  $("locQuery").value = "";
+  $("locPref").value = "";
+  $("locModal").classList.add("open");
+}
+function closeLocation() { $("locModal").classList.remove("open"); }
+
+async function searchLocation(q) {
+  $("locStatus").textContent = "検索中…";
+  $("locResults").innerHTML = "";
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=10&language=ja&format=json`;
+    const results = (await (await fetchWithTimeout(url)).json()).results || [];
+    $("locStatus").textContent = results.length ? "" : "見つかりませんでした";
+    $("locResults").innerHTML = results.map((r, i) => {
+      const area = [r.admin1, r.admin2, r.country_code !== "JP" ? r.country : ""].filter(Boolean).join(" ");
+      return `<li><button data-i="${i}">${esc(r.name)}<small>${esc(area)}</small></button></li>`;
+    }).join("");
+    $("locResults").onclick = e => {
+      const b = e.target.closest("button"); if (!b) return;
+      const r = results[b.dataset.i];
+      setLocation({ name: r.name, lat: r.latitude, lon: r.longitude });
+    };
+  } catch (e) {
+    $("locStatus").textContent = "検索に失敗しました";
+  }
+}
+
+function useGeolocation() {
+  if (!navigator.geolocation) { $("locStatus").textContent = "このブラウザは位置情報に対応していません"; return; }
+  $("locStatus").textContent = "現在地を取得中…";
+  navigator.geolocation.getCurrentPosition(
+    p => setLocation({ name: "現在地", lat: +p.coords.latitude.toFixed(4), lon: +p.coords.longitude.toFixed(4) }),
+    e => { $("locStatus").textContent = e.code === 1 ? "位置情報の利用が許可されていません" : "現在地を取得できませんでした"; },
+    { timeout: 15000, maximumAge: 600000 }
+  );
+}
+
+function initLocation() {
+  $("weather").onclick = openLocation;
+  $("locClose").innerHTML = ICONS.close;
+  $("locClose").onclick = closeLocation;
+  $("locModal").onclick = e => { if (e.target.id === "locModal") closeLocation(); };
+  $("locGeo").innerHTML = `${ICONS.pin}<span>現在地を使う</span>`;
+  $("locGeo").onclick = useGeolocation;
+  $("locSearch").innerHTML = `${ICONS.search}<span>検索</span>`;
+  $("locPref").innerHTML = `<option value="">選択してください</option>`
+    + PREFS.map((p, i) => `<option value="${i}">${p[0]}（${p[1]}）</option>`).join("");
+  $("locPref").onchange = e => {
+    if (e.target.value === "") return;
+    const [pref, city, lat, lon] = PREFS[e.target.value];
+    setLocation({ name: city, lat, lon });
+  };
+  $("locForm").onsubmit = e => {
+    e.preventDefault();
+    const q = $("locQuery").value.trim();
+    if (q) searchLocation(q);
+  };
 }
 
 /* ============================================================
@@ -783,7 +935,8 @@ renderFsIcon();
 tick();
 renderNet();
 initBattery();
-if (store("weather")) renderWeather(store("weather"));
+initLocation();
+if (cachedWeather()) renderWeather(cachedWeather());
 loadWeather();
 setInterval(loadWeather, WEATHER_REFRESH_MIN * 60000);
 renderLauncher();
